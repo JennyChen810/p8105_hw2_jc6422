@@ -18,3 +18,251 @@ library(tidyverse)
 library(readxl)
 ```
 
+Load and clean the data from `NYC_Transit_Subway_Entrance_And_Exit_Data.csv`. 
+
+
+```{r}
+nyc_df = 
+  read_csv(
+    "./data/NYC_Transit_Subway_Entrance_And_Exit_Data.csv",
+    col_types = cols(Route8 = "c", Route9 = "c", Route10 = "c", Route11 = "c")) |> 
+  janitor::clean_names() |> 
+  select(
+    line, station_name, station_latitude, station_longitude, 
+    starts_with("route"), entry, exit_only, vending, entrance_type, 
+    ada) |> 
+  mutate(entry = ifelse(entry == "YES", TRUE, FALSE))
+```
+
+This dataset provides information about entrances and exits for subway stations in the New York city. The variables in this dataset are line, station_name,station_latitude, station_longitude, route1, route2, route3, route4, route5, entry,vending,entrance_type, ada. To clean the data, I use `janitor::clean_names()` to convert the column names to lowercase and replaced the special characters and spaces with underscores. The `entry` variable was transformed from a character like `YES` or `No` to a logical variable like `TRUE` or `FALSE`. As part of data import, we specify that `Route` columns 8-11 should be character for consistency with 1-7. The cleaned data has a dimension of `r nrow(nyc_df)` and `r ncol(nyc_df)` columns, which retains the necessary variables for analyzing this data. These data are tidy since each variable forms a column, each observation forms a row, and each value is uniquely located at the intersection of a row and a column.
+
+Calculate the number of distinct stations. 
+Selects station name and line, and then uses `distinct()` to obtain all unique combinations.
+
+```{r}
+nyc_df |> 
+  select(station_name, line) |> 
+  distinct()
+```
+
+There are `r nrow(nyc_df |>distinct(line, station_name))` distinct stations.
+
+Calculate the number of stations are ADA compliant.
+
+```{r}
+nyc_df |> 
+  filter(ada == TRUE) |> 
+  select(station_name, line) |> 
+  distinct()
+```
+
+There are `r nrow(nyc_df |> filter(ada == TRUE) |> distinct(line, station_name))` stations are ADA compliant.
+
+Calculate the proportion of stations entrances/exist without vending allow entrance.
+
+```{r}
+prop_no_vending = nyc_df |> 
+  filter(vending == "NO") |> 
+  pull(entry) |> 
+  mean()
+```
+
+The proportion of station entrances/exits without vending is `r prop_no_vending`.
+
+Reformat data
+
+Convert `route` from wide to long format. Then, we can use tools from previous parts of the question (filtering to focus on the A train, and on ADA compliance; selecting and using `distinct` to obtain dataframes with the required stations in rows).
+
+```{r}
+A_train = nyc_df |> 
+  pivot_longer(
+    route1:route11,
+    names_to = "route_num",
+    values_to = "route") |> 
+  filter(route == "A") |> 
+  select(station_name, line) |> 
+  distinct()
+
+ADA_compliant = nyc_df |> 
+  pivot_longer(
+    route1:route11,
+    names_to = "route_num",
+    values_to = "route") |> 
+  filter(route == "A", ada == TRUE) |> 
+  select(station_name, line) |> 
+  distinct()
+```
+
+There are `r nrow(A_train)` distinct stations served the A train.
+
+There are `r nrow(ADA_compliant)` distinct A stations that are ADA compliant.
+
+## Problem 2 
+
+Read and clean the Mr.Trash Wheel sheet.
+
+First, clean each sheet in the dataset with `read_excel`, filters out non-data rows, rounds sports balls to the nearest integer, and adds a trash_wheel column for identification.
+
+```{r}
+library(readxl)
+clean_trash_wheel =
+    read_excel("./data/202409_Trash_Wheel_Collection_Data.xlsx",sheet = "Mr. Trash Wheel") %>%
+    janitor::clean_names() %>% 
+    select(-x15, -x16)%>%
+    filter(!is.na(dumpster)) %>% 
+    mutate(sports_balls = as.integer(round(sports_balls)),
+           year = as.numeric(year))
+
+```
+
+Mr. trash wheel sheet has `r nrow(clean_trash_wheel)` rows and `r ncol(clean_trash_wheel)` columns. The variables are `r names(clean_trash_wheel)`.
+
+Read and clean the data for Professor Trash Wheel.
+
+```{r}
+clean_professor =
+    read_excel("./data/202409_Trash_Wheel_Collection_Data.xlsx", sheet = "Professor Trash Wheel") %>%
+    janitor::clean_names() %>% 
+    filter(!is.na(dumpster)) %>%
+    mutate(year = as.numeric(year))
+```
+
+Professor trash wheel sheet has `r nrow(clean_professor)` rows and `r ncol(clean_professor)` columns. The variables are `r names(clean_professor)`.
+
+Read and clean the data for Gwynnda Trash Wheel
+
+```{r}
+clean_gwynnda =
+    read_excel("./data/202409_Trash_Wheel_Collection_Data.xlsx", sheet = "Gwynnda Trash Wheel") %>%
+    janitor::clean_names() %>% 
+    filter(!is.na(dumpster)) %>%
+    mutate(year = as.numeric(year))
+
+print(clean_gwynnda)
+```
+
+Gwynnda trash wheel sheet has `r nrow(clean_gwynnda)` rows and `r ncol(clean_gwynnda)` columns. The variables are `r names(clean_gwynnda)`.
+
+Then combine these sheets by `bind_rows`.
+
+```{r}
+clean_trash_wheel = clean_trash_wheel %>% 
+  mutate(trash_wheel = "Mr. Trash Wheel")
+clean_professor = clean_professor %>% 
+  mutate(trash_wheel = "Professor Trash Wheel")
+clean_gwynnda = clean_gwynnda %>% 
+  mutate(trash_wheel = "Gwynnda")
+
+combined_trash_data = bind_rows(clean_trash_wheel, clean_professor, clean_gwynnda)
+```
+
+The new dataset has `r nrow(combined_trash_data)` observations and `r ncol(combined_trash_data)` columns. The key variables: `r names(combined_trash_data)`. 
+
+Calculate the total weight of trash collected by Professor Trash Wheel.
+
+```{r}
+professor_trash_total_weight = combined_trash_data %>%
+  filter(trash_wheel == "Professor Trash Wheel") %>%
+  summarize(total_weight_tons = sum(weight_tons, na.rm = TRUE))
+```
+
+The total trash weight collected by Professor Trash Wheel is `r sum(professor_trash_total_weight$weight_tons, na.rm = TRUE)` tons.
+
+Calculate the total number of cigarette butts collected by Gwynnda in June of 2022.
+
+```{r}
+gwynnda_cigarette_butts = combined_trash_data %>%
+  filter(trash_wheel == "Gwynnda", format(date, "%Y-%m") == "2022-06") %>%
+  summarize(total_cigarette_butts = sum(cigarette_butts, na.rm = TRUE))
+```
+
+* The total number of cigarette butts collected by Gwynnda in June of 2022 is `r format(sum(gwynnda_cigarette_butts$cigarette_butts,na.rm = TRUE))`.
+
+## Problem 3
+
+load and clean the data
+
+```{r}
+bakers =
+  read_csv("./data/bakers.csv",na = c("NA", "N/A", "UNKNOWN", "Unknown", ""))%>%
+  janitor::clean_names() %>% 
+  mutate(baker_name = str_trim(baker_name)) %>%
+  select(baker_name, everything())
+
+bakes = 
+  read_csv("./data/bakes.csv",na = c("NA", "N/A", "UNKNOWN", "Unknown", "")) %>%
+  janitor::clean_names() %>% 
+  mutate(baker = str_trim(baker)) %>%
+  select(baker, everything())
+
+results = read_csv("./data/results.csv",skip=2) %>%
+  janitor::clean_names() %>% 
+  mutate(
+    baker = str_trim(baker),
+    result = str_to_upper(result)) %>%
+  select(baker, everything())
+```
+
+Imput each dataset `bakers.csv`, `bakes.csv`, and `results.csv` then use the `read_csv()` function reads the CSV files. Special values like “NA”, “N/A”, “UNKNOWN”, “Unknown”, and empty strings are treated as missing (NA). I use `janitor::clean_names()` to each dataset to standardize the columns. Then I use `mutate()`function to remove any leading or trailing whitespace from the `baker_name` column using `str_trim()`. Reorders columns so that `baker_name` is the first column.
+
+Use `anti_join()` function to check for completeness and correctness across datasets.
+```{r}
+anti_join(bakes, bakers)
+anti_join(bakes, results)
+```
+
+The result of `anti_join(results,their_bake)` shows cannot find the corresponding results in all the episodes jo attended. But Jo might be Joanne who is the winner of series 2. Therefore, I changed the first name Joanne to Jo in the result dataframe.
+
+merge the data bakers and bakes on series and baker.
+
+```{r}
+merged_data = bakes %>%
+  left_join(bakers, by = c("series" = "series", "baker" = "baker_name"))
+
+final_data = merged_data %>%
+  left_join(results, by = c("series" = "series", "episode" = "episode", "baker" = "baker"))
+
+print(final_data)
+write_csv(final_data, "final_data.csv")
+```
+
+Create a table to show the Star Bakers and Winners.
+
+```{r}
+star_bakers = final_data %>%
+  filter(result %in% c('STAR BAKER', 'WINNER')) %>%
+  select(series, episode, baker, result)
+
+star_bakers_seasons = star_bakers %>%
+  filter(series >= 5 & series <= 10)
+
+print(star_bakers_seasons)
+```
+
+In this table, we can observe that the series winner is often start baker, but even though people win the most star baker titles do not always win the series. Therefore,  the series winner could be someone who do not have the most star baker titles through the season.
+
+load and clean the `Viewers.csv`.
+
+First load the `Viewers.csv` file and figure out the NA values. Use `janitor::clean_names()` to standardize the columns. Mutate the season variable to integer. Then use pivot_longer to organize the data.
+
+```{r}
+viewers = 
+  read_csv("./data/viewers.csv",na = c("NA", ".", "")) %>%
+  janitor::clean_names() %>%
+  pivot_longer(series_1: series_10,
+               names_to = "season",
+               names_prefix = "series_",
+               values_to = "viewership") %>% 
+  mutate(season= as.integer(season))
+
+head(viewers, 10)
+```
+
+The average viewership in Season 1 is `r mean(viewers|>filter(season==1)|>pull(viewership),na.rm = TRUE)`.
+
+The average viewership in Season 5 is `r round(mean(viewers|>filter(season==5)|> pull(viewership), na.rm = TRUE), 2)`.
+
+
+
+
+
