@@ -1,0 +1,20 @@
+---
+title: "p8105_hw2_jc6422"
+author: "Jianing Chen"
+date: "2024-10-03"
+output: github_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(collapse = TRUE, message = FALSE)
+```
+
+## Problem 1 
+
+Load the necessary packages.
+
+```{r}
+library(tidyverse)
+library(readxl)
+```
+
